@@ -1,0 +1,316 @@
+
+(define waterloo
+'((0 (1 2 3))
+(1 (2 3))
+(2 (0 4))
+(3 (1))
+(4 (5))
+(5 (3))))
+
+(define toronto
+'((0 (1 2 3))
+(1 (2 3))
+(2 (0 4))
+(3 (1))
+(4 (2))
+(5 (3))))
+
+;;******* QI *******
+
+;; (infect town zombies) consumes a town (represented as a graph)
+;; and a number of zombies and produces a horde with that many zombies at each location
+;; Examples:
+(check-expect (infect waterloo 1000) (list (list 0 1000) (list 1 1000) (list 2 1000)
+(list 3 1000) (list 4 1000) (list 5 1000)))
+(check-expect (infect toronto 1200) (list (list 0 1200) (list 1 1200) (list 2 1200)
+(list 3 1200) (list 4 1200) (list 5 1200)))
+
+;; infect: Town Nat -> Horde
+(define (infect town zombies)
+  (cond [(empty? town) empty]
+        [else (cons (list (first (first town)) zombies) (infect (rest town) zombies))]))
+
+;; Tests:
+(check-expect (infect '((0 (1)) (1 (0))) 100) (list (list 0 100) (list 1 100)))
+(check-expect (infect toronto 1) (list (list 0 1) (list 1 1) (list 2 1)
+(list 3 1) (list 4 1) (list 5 1)))
+
+                        
+;;******* QII *******
+
+;; (sink horde) consumes a horde and produces a list of the total number of zombies that sink into
+;; the earth and the horde after those zombies have sunken into the earth 
+;; Examples:
+(check-expect (sink (infect waterloo 1000))
+              (list 300 (list (list 0 950) (list 1 950) (list 2 950)
+(list 3 950) (list 4 950) (list 5 950))))
+
+;; sink: Horde -> (list Nat Horde)
+(define (sink horde)
+  (local [
+          ;; Constants:
+          (define org horde)
+
+          ;; (new-amount amount) produces the new amount of zombies at a location after zombies
+          ;; have sunk
+          ;; new-amount: Nat -> Nat 
+          (define (new-amount amount) (round (- amount (* amount 0.05))))
+
+          ;; (total-sunk horde-new horde-org) determines the total number of zombies that
+          ;; sink into the earth
+          ;; total-sunk: Horde Horde -> Nat
+          (define (total-sunk horde-new horde-org)
+            (cond [(empty? horde-new) 0]
+                  [else (+ (- (second (first horde-org)) (second (first horde-new)))
+                              (total-sunk (rest horde-new) (rest horde-org)))]))
+
+          ;; (sunk-location horde) determines the horde after the zombies have sunk into the earth
+          ;; sunk-location: Horde -> Horde
+          (define (sunk-location horde)
+            (cond [(empty? horde) empty]
+                  [else (cons (list (first (first horde)) (new-amount (second (first horde))))
+                         (sunk-location (rest horde)))]))]
+    
+(list (total-sunk (sunk-location horde) org) (sunk-location horde))))
+
+;; Tests:
+(check-expect (sink (list (list 0 350) (list 1 300) (list 2 1000) (list 3 450)))
+              (list 105 (list (list 0 332) (list 1 285) (list 2 950) (list 3 428))))
+(check-expect (sink (list (list 4 5) (list 5 10))) (list 0 (list (list 4 5) (list 5 10))))
+(check-expect (sink (list (list 10 100))) (list 5 (list (list 10 95))))
+
+
+;;******* QIII *******
+
+;; (apportion zombies n) consumes a number of zombies and a positive number of ways those zombies
+;; should be divided. It produces a list of exactly n natural number where the numbers must add up to
+;; the number of zombies and the difference between any two numbers can’t be greater than 1
+;; Examples:
+(check-expect (apportion 100 3) (list 34 33 33))
+(check-expect (apportion 1 3) (list 1 0 0))
+
+;; apportion: Nat Nat -> (listof Nat)
+;; Required: zombies >= n and zombies > 0
+(define (apportion zombies n) 
+  (local [
+          ;; Constant:
+          (define left-over (remainder zombies n))
+          (define missing (floor (/ zombies n)))
+
+          ;; (makelist n) makes a list n items long of the floor of the number of zombies divided by n
+          ;; makelist: Nat -> (listof Nat)
+          (define (makelist n)
+            (cond [(= n 0) empty]
+                  [else (cons missing (makelist (sub1 n)))]))
+          
+          ;; (split left list) takes the remainder left when the number of zombies is divided by n
+          ;; and divides the remainder as evenly as possible into a list of nat
+          ;; split: Nat (ne-listof Nat) -> (listof Nat)
+          (define (split left list)
+            (cond [(= left 0) list]
+                  [else (cons (+ 1 (first list)) (split (sub1 left) (rest list)))]))]
+    
+  (split left-over (makelist n))))
+
+;; Tests:
+(check-expect (apportion 100 15) (list 7 7 7 7 7 7 7 7 7 7 6 6 6 6 6))
+(check-expect (apportion 100 1)(list 100))
+(check-expect (apportion 40 2) (list 20 20))
+(check-expect (apportion 40 3) (list 14 13 13))
+(check-expect (apportion 3 3) (list 1 1 1))
+
+;;******* QIV *******
+
+;; (shamble town horde) consumes a graph representing a town and a horde of zombies infesting that
+;; town and produces the horde that results from all the zombies at each location apportioning
+;; themselves into nearly equal groups and shambling along the edges connecting the locations. 
+;; Examples:
+(check-expect (shamble waterloo (second (sink (infect waterloo 1000))))
+              (list (list 0 475) (list 1 1267) (list 2 792) (list 3 1741) (list 4 475) (list 5 950)))
+
+;; shamble: Town Horde -> Horde 
+(define (shamble town horde)
+  (local [
+          ;; (apportion-helper town horde) consumes a town and horde and produces a list of pairs
+          ;; where the first in the pair is the number of zombies at a location and the
+          ;; second of the pair is the number of neighbours a location has
+          ;; apportion-helper: Town Horde -> (listof (list Nat Nat))
+          (define (apportion-helper town horde)
+            (cond [(empty? horde) empty]
+                  [else (cons (list (second (first horde)) (length (second (first town))))
+                    (apportion-helper (rest town) (rest horde)))]))
+
+          ;; (make-apportion helper) consumes the result of apportion-helper and produces a list
+          ;; of the number of zombies at each location after shambling
+          ;; make-apportion: (listof (list Nat Nat) -> (listof Nat)
+          (define (make-apportion helper)
+            (cond [(empty? helper) empty]
+                  [else (append (apportion (first (first helper)) (second (first helper)))
+                    (make-apportion (rest helper)))]))
+
+          ;; (make-pairs town) consumes a town and produces a list of lists containing a location
+          ;; and all its outward neighbours 
+          ;; make-pairs: Town -> (listof (list Location Nat))
+          (define (make-pairs town)
+            (cond [(empty? town) empty]
+                  [else (append (location-pair (first (first town)) (second (first town)))
+                    (make-pairs (rest town)))]))
+          
+          ;; (location-pair location neighbours) consumes a town and its neighbours and produces a
+          ;;  list of pairs of all the locations and its neighbours
+          ;; location-pair: Town Nat -> (listof (list Location Location))
+          (define (location-pair location neighbours)
+            (cond [(empty? neighbours) empty]
+                  [else (cons (list location (first neighbours))
+                    (location-pair location (rest neighbours)))]))
+
+          ;; (all-together pairs zombie-shamble) consumes a list of pairs of a location and its
+          ;; neighbours and a list of the numbers of zombies at location after shambling and produces
+          ;; a list of the pairs and the number of zombies that travel on that path
+          ;; all-together: (list Location Location) (listof Nat) ->
+          ;; (listof (list Nat Location Location))
+          (define (all-together pairs zombie-shamble)
+            (cond [(empty? zombie-shamble) empty]
+                  [else (sort (cons (cons (first zombie-shamble) (first pairs))
+                    (all-together (rest pairs) (rest zombie-shamble)))
+                    (lambda (x y) (< (third x) (third y))))]))
+
+          ;; (count-zombieplace lot lop) consumes a lot that is a list of paths and the zombies that
+          ;; travel each path and a lop which is the list of possible paths and produces the number of
+          ;; zombies at each location after shambling
+          ;; count-zombieplace: (listof (list Nat Location Location)) (listof (list Location Location)
+          ;; -> (listof (list Location Nat))
+          (define (count-zombieplace lot lop)
+            (cond [(empty? lot) lop]
+                  [(empty? lop)
+                   (count-zombieplace (rest lot) (cons (list (third (first lot))
+                                                                      (first (first lot))) lop))]
+                  [(not (= (third (first lot)) (first (first lop))))
+                   (count-zombieplace (rest lot) (cons (list (third (first lot))
+                                                                      (first (first lot))) lop))]
+                  [else (count-zombieplace (rest lot) (adjust-stack (first (first lot)) lop))]))
+
+          ;; (adjust-stack n lop) consumes a nat and a list of locations and adds the n to the number
+          ;; of zombies at that location
+          ;; adjust-stack: Nat (listof (list Location Nat)) -> (list Location Nat)
+          (define (adjust-stack n lop)
+            (cons (list (first (first lop)) (+ (second (first lop)) n)) (rest lop)))]
+
+  (sort (count-zombieplace (all-together (make-pairs town) (make-apportion 
+                    (apportion-helper town horde))) empty) (lambda (x y) (< (first x) (first y))))))
+
+;; Tests:
+(check-expect (shamble toronto (second (sink (infect toronto 1500)))) (list
+ (list 0 713)
+ (list 1 1900)
+ (list 2 2613)
+ (list 3 2612)
+ (list 4 712)))
+(check-expect (shamble '((0 (1 2)) (1 (2))) (second (sink (infect '((0 (1 2)) (1 (2))) 3000))))
+              (list (list 1 1425) (list 2 4275)))
+(check-expect (shamble '((0 (1 2))) (list (list 0 570))) (list (list 1 285) (list 2 285)))
+
+
+;;******* QV *******
+
+;; (rise zombies horde) consumes a natural number of zombies and a horde. It produces a new horde
+;; with those zombies added to the horde, apportioned as equally as possible between the locations
+;; Examples:
+(check-expect (rise 300 (shamble waterloo (second (sink (infect waterloo 1000)))))
+              (list (list 0 525) (list 1 1317) (list 2 842) (list 3 1791)
+(list 4 525) (list 5 1000)))
+
+;; rise: Nat Horde -> Horde
+(define (rise zombies horde)
+  (local [(define amount-add (apportion zombies (length horde)))
+          (define (morning horde apportion1)
+            (cond [(empty? horde) empty]
+                  [else (cons (list (first (first horde))
+                                    (+ (second (first horde))(first apportion1)))
+                        (morning (rest horde) (rest apportion1)))]))]
+
+    (morning horde amount-add)))
+
+;; Tests:
+(check-expect (rise 400 (shamble waterloo (second (sink (infect toronto 1000))))) (list
+ (list 0 542)
+ (list 1 1334)
+ (list 2 859)
+ (list 3 1808)
+ (list 4 541)
+ (list 5 1016)))
+(check-expect (rise 1 (shamble waterloo (second (sink (infect waterloo 10))))) (list
+ (list 0 6)
+ (list 1 14)
+ (list 2 8)
+ (list 3 18)
+ (list 4 5)
+ (list 5 10)))
+(check-expect (rise 130  (list (list 1 285) (list 2 285))) (list (list 1 350) (list 2 350)))
+  
+;;******* QVI *******
+
+;; (night town horde) consumes a town and a horde and produces a new horde after a single night has
+;; passed
+;; Examples:
+(check-expect (night waterloo (infect waterloo 1000))
+              (list (list 0 525) (list 1 1317) (list 2 842)
+                    (list 3 1791) (list 4 525) (list 5 1000)))
+(check-expect (night waterloo (infect waterloo 2000))
+              (list
+ (list 0 1050)
+ (list 1 2634)
+ (list 2 1683)
+ (list 3 3583)
+ (list 4 1050)
+ (list 5 2000)))
+
+;; night: Town Horde -> Horde
+(define (night town horde)
+  (rise (first (sink horde)) (shamble town (second (sink horde)))))
+
+;; Tests:
+(check-expect (night toronto (infect toronto 1500)) (list
+ (list 0 803)
+ (list 1 1990)
+ (list 2 2703)
+ (list 3 2702)
+ (list 4 802)))
+(check-expect (night '((10 (4 5))) (infect '((10 (4 5))) 700)) (list (list 4 351) (list 5 349)))
+
+;;******* QVII *******
+
+;; (apocalypse town infection nights) consumes a town, aninitial number of zombies infecting each
+;; location, and a number of nights and produces the horde after that many nights have passed
+;; Examples:
+(check-expect (apocalypse waterloo 1000 3)
+              (list (list 0 450) (list 1 1894) (list 2 1104)
+                    (list 3 1625) (list 4 450) (list 5 477)))
+(check-expect (apocalypse waterloo 1000 7)
+              (list (list 0 544) (list 1 1747) (list 2 1016)
+                    (list 3 1576) (list 4 543) (list 5 574)))
+(check-expect (apocalypse toronto 1200 4)
+              (list (list 0 1294)(list 1 1793)
+                    (list 2 1815) (list 3 1005)(list 4 1293)))
+
+;; apocalypse: Town Nat Nights -> Horde
+(define (apocalypse town infection nights)
+  (local [(define (apocalypse1 horde town nights)
+  (cond [(= nights 0) horde]
+        [else (apocalypse1 (night town horde) town (sub1 nights))]))]
+  (cond [(= nights 1) (night town (infect town infection))]
+        [else (apocalypse1 (night town (infect town infection)) town (sub1 nights))])))
+
+;; Tests:
+(check-expect (apocalypse waterloo 1000 14)
+              (list (list 0 545) (list 1 1728) (list 2 1040)
+                    (list 3 1576) (list 4 545) (list 5 566)))
+(check-expect (apocalypse waterloo 1000 28)
+             (list (list 0 545) (list 1 1723) (list 2 1042)
+                   (list 3 1578) (list 4 545) (list 5 567)))
+(check-expect (apocalypse waterloo 1000 31)
+            (list (list 0 545) (list 1 1723) (list 2 1042)
+                  (list 3 1579)(list 4 544) (list 5 567)))
+(check-expect (apocalypse waterloo 1000 1)
+             (list (list 0 525) (list 1 1317) (list 2 842)
+                   (list 3 1791) (list 4 525) (list 5 1000)))
