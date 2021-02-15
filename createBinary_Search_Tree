@@ -1,0 +1,90 @@
+
+(define-struct node (key left right))
+;; A Node is a (make-node Nat BST BST)
+;; Requires: key > every key in left BST
+;;  key < every key in right BST
+
+;; A Binary Search Tree (BST) is one of
+;; * empty
+;; * Node
+
+;;********* Q4 *********
+
+;; Examples:
+(check-expect (sorted-list->bst '(1 2 3 4 5))
+              (make-node 3
+                         (make-node 2
+                                    (make-node 1 empty empty)
+                                    empty)
+                         (make-node 5
+                                    (make-node 4 empty empty)
+                                    empty)))
+(check-expect (sorted-list->bst  '(1 2 3 4 5 6))
+              (make-node 4
+                         (make-node 2
+                                    (make-node 1 empty empty)
+                                    (make-node 3 empty empty))
+                         (make-node 6
+                                    (make-node 5 empty empty)
+                                    empty)))
+(check-expect (sorted-list->bst '(30 45))
+              (make-node 45
+                         (make-node 30 empty empty)
+                         empty))
+(check-expect (sorted-list->bst '(30)) (make-node 30 empty empty))
+(check-expect (sorted-list->bst empty) empty)
+
+;; sorted-list->bst: (listof Nat) -> BST
+;; Required: lst must be sorted in strictly increasing order, with no duplicates
+(define (sorted-list->bst lst)
+  (local [
+          ;; add-to-bts Nat BST -> BST
+          (define (add-to-bst number bst)
+            (cond [(empty? bst) (make-node number empty empty)]
+                  [(< number (get-root-num bst))
+                   (makenode (node-key bst)
+                             (add-to-bst number (node-left bst))
+                             (node-right bst))]
+                  [else  (makenode (node-key bst) 
+                     (node-left bst)
+                     (add-to-bst number (node-right bst)))]))
+
+          ;; get-root-num: BST -> Num
+          (define (get-root-num bst)
+            (node-key bst))
+
+          ;; makenode: Num Node Node -> Node
+          (define (makenode num leftNode rightNode)
+            (make-node num leftNode rightNode))
+
+          ;; get-left: (ne-listof Num) -> (listof Num)
+          (define (get-left lst) 
+            (local [(define middle (get-middle lst))]
+              (filter (lambda (x) (< x middle)) lst)))
+
+          ;; get-right: (ne-listof Num) -> (listof Num)
+          (define (get-right lst)
+            (local [(define middle (get-middle lst))]
+              (filter (lambda (x) (> x middle)) lst)))
+
+          ;; get-middle-num (ne-listof Num) -> Num
+          (define (get-middle-num lst)
+            (cond [(even? (length lst)) (+ 1 (ceiling (/ (length lst) 2)))]
+                  [else (ceiling (/ (length lst) 2))]))
+
+          ;; get-middle (ne-listof Num) -> Num
+          (define (get-middle lst)
+            (local [(define middle-place (get-middle-num lst))
+                    (define (m num lst)
+                      (cond [(= num 1) (first lst)]
+                            [else (m (sub1 num) (rest lst))]))]
+              (m middle-place lst)))
+     
+          ;; read-next: (ne-listof Num) BST -> BST
+          (define (read-next lst bst)
+            (cond [(empty? lst) bst]
+                  [else (read-next (get-right lst) (read-next (get-left lst)
+                                                  (add-to-bst (get-middle lst) bst)))]))]
+                      
+  (cond [(empty? lst) empty]
+        [else (read-next lst empty)])))
