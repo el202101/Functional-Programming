@@ -1,0 +1,43 @@
+;; (parity) determines the parity of a binary string
+;; Examples:
+(check-expect (parity "110101") 'even)
+(check-expect (parity "1110011") 'odd)
+
+;; parity: Str -> Sym
+(define (parity binary-string)
+  (cond [(= (remainder (countone (string->list binary-string)) 2) 0) 'even]
+        [else 'odd]))
+                
+;; Tests:
+(check-expect (parity "1") 'odd)
+(check-expect (parity "0000") 'even)
+(check-expect (parity "11111") 'odd)
+(check-expect (parity "000") 'even)
+(check-expect (parity "0") 'even)
+
+
+;; (countone) determines the number of times #\1 is in a list
+;; Examples:
+(check-expect (countone (cons #\1 (cons #\0 (cons #\1 (cons #\1 empty))))) 3)
+(check-expect (countone (cons #\0 (cons #\0 (cons #\0 (cons #\0 empty))))) 0)
+(check-expect (countone (cons #\1 empty)) 1)
+
+;; countone: (ne-listof Char) -> Nat
+(define (countone binaryList)
+  (cond [(empty? (rest binaryList)) (oneorzero (first binaryList))]
+        [else (+ (oneorzero (first binaryList)) (countone (rest binaryList)))]))
+
+
+;; (oneorzero) produces 0 if the character is #\0
+;; and 1 for all other characters
+;; Examples:
+(check-expect (oneorzero #\3) 1)
+(check-expect (oneorzero #\0) 0)
+(check-expect (oneorzero #\1) 1)
+
+;; oneorzero: Char -> Nat 
+(define (oneorzero char)
+  (cond [(equal? char #\0) 0]
+        [else               1]))
+
+                
