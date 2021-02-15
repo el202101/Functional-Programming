@@ -1,0 +1,65 @@
+ 
+(define vowel-shift '((#\a #\e)(#\e #\i)(#\i #\o)  
+                      (#\o #\u) (#\u #\y)(#\y #\a)))  
+  
+;;******* Q2bi *******  
+  
+;; Examples:  
+(check-expect (substitute "I, plain text!9" vowel-shift) "I, pleon tixt!9")  
+(check-expect (substitute "hhhh" vowel-shift) "hhhh")  
+  
+;; substitute: Str SCipher -> Str 
+(define (substitute message cipher)  
+  (list->string (sub (string->list message) cipher)))  
+  
+;; Tests:  
+(check-expect (substitute "HELLO" vowel-shift) "HELLO")  
+(check-expect (substitute "poodle" vowel-shift) "puudli")  
+(check-expect (substitute "y" vowel-shift) "a")  
+
+;; sub: Char SCipher -> (listof Char)
+(define (sub message c)
+  (map (lambda (message) (cipher message c)) message))
+
+;; cipher: Char SCipher -> Char
+(define (cipher message c)
+  (foldr (lambda  (c rorr) (cond [(equal? message (first c)) (second c)]
+                                 [else rorr])) message c))
+
+;;******* Q2bii *******
+
+;; Examples:
+(check-expect (reverse-cipher vowel-shift) '((#\e #\a)(#\i #\e)(#\o #\i)  
+                      (#\u #\o) (#\y #\u)(#\a #\y)))
+(check-expect (reverse-cipher '((#\a #\b) (#\c #\b))) false)
+(check-expect (reverse-cipher '((#\a #\b))) '((#\b #\a)))
+
+;; reverse-cipher: SCipher -> SCipher
+(define (reverse-cipher cipher)
+  (cond [(empty? cipher) empty]
+        [(not (reversible? cipher)) false]
+        [else (reverse-c cipher)]))
+
+;; Tests:
+(check-expect (reverse-cipher empty) empty)
+(check-expect (reverse-cipher '((#\e #\a)(#\i #\e)(#\o #\a)  
+                      (#\u #\b) (#\y #\b)(#\a #\a))) false)
+(check-expect (reverse-cipher '((#\b #\b))) '((#\b #\b)))
+
+;; reversible?: SCipher -> Bool
+(define (reversible? cipher)
+  (cond [(empty? cipher) true]
+        [(not (reversible2? (second (first cipher)) (rest cipher))) false]
+        [else (reversible? (rest cipher))]))
+
+;; reversible2?: Char SCipher -> Bool 
+(define (reversible2? c cipher)
+  (cond [(empty? cipher) true]
+        [(char=? c (second (first cipher))) false]
+        [else (reversible2? c (rest cipher))]))
+
+;; reverse-c: SCipher -> SCipher
+(define (reverse-c cipher)
+  (cond [(empty? cipher) empty]
+        [else (cons (list (second (first cipher)) (first (first cipher)))
+                    (reverse-c (rest cipher)))]))
