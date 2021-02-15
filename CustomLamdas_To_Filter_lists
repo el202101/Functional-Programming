@@ -1,0 +1,56 @@
+
+;; (super-foldr combine base lst) generalizes foldr to work on nestedlists of non-list elements
+;; Examples:
+(check-expect (super-foldr (lambda (val sofar) (cond [(string? val) (+ (string-length val) sofar)]
+[(number? val) (+ val sofar)])) 0 '("pancho" "lefty" ("my" "proud" "mountains")
+("tecumseh" "valley"))) 41)
+(check-expect (super-foldr + 0 (list (list 1 2 3) 4 (list 4 5) 8 9)) 36)
+
+;; super-foldr: (X Y -> Y) Y (nested-listof X) -> Y
+(define (super-foldr combine base lst)
+  (cond [(empty? lst) base]
+        [(list? (first lst))
+         (combine (super-foldr combine base (first lst))(super-foldr combine base (rest lst)))]
+        [else (combine (first lst)(super-foldr combine base (rest lst)))]))
+
+;; Tests:
+(check-expect (super-foldr - 2 (list (list 1 2 3) (list 3 4))) 1)
+(check-expect (super-foldr + 0 empty) 0)
+(check-expect (super-foldr + 0 (list (list 1 2))) 3)
+
+;;******* Q5b *******
+
+;; (magnitudes n1) produces the sum of all the absolute values of the numbers in a nested list
+;; Examples:
+(check-expect (magnitudes '(1 (-5 -5 (1 -3)) (-10 2) 2)) 29)
+(check-expect (magnitudes empty) 0)
+
+;; magnitudes: (nested-listof Num) -> (nested-listof Num)
+(define (magnitudes nl)
+  (super-foldr (lambda (val sofar)
+                 (cond [(< val 0) (+ (* -1 val) sofar)]
+                       [else (+ val sofar)])) 0 nl))
+
+;; Tests:
+(check-expect (magnitudes '(1 (2 3 4) 5)) 15)
+(check-expect (magnitudes '((-1))) 1)
+
+;;******* Q5c *******
+
+;; (super-filter pred? lst)
+(check-expect
+(super-filter odd? '(1 (2 (2 3 4) 5 6 (7 8 9)) 10 11 12)) '(1 ((3) 5 (7 9)) 11))
+(check-expect (super-filter even? empty) empty)
+
+;; super-filter: (X-> Bool) (nested-listof X) -> (nested-listof X))
+(define (super-filter pred? lst)
+  (cond [(empty? lst) empty]
+        [else (super-foldr (lambda (x y)
+                 (cond [(list? x) (cons x y)]
+                       [(not (pred? x)) y]
+                       [else (cons x y)])) empty lst)]))
+
+;; Tests:
+(check-expect (super-filter even? '((3 8))) '((8)))
+(check-expect (super-filter number? '("house" "car" (1 2) 'a)) '((1 2) ()))
+(check-expect (super-filter integer? '( 1 2 (pi 'a))) '(1 2 (())))
