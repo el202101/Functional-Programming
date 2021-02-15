@@ -1,0 +1,179 @@
+
+;;******* Q2 ********
+
+;; =============================================================================
+;; data definitions For Q2
+;; =============================================================================
+
+;; An HTML-Item (HI) is one of
+;; * Str
+;; * Tag
+
+;; A Tag is (cons Sym (listof HI))
+
+
+;; =============================================================================
+;; constants For Q2 examples
+;; =============================================================================
+
+(define just-text "Hello, world!")
+(define short-example '(p (h1 "Heading") "Text"))
+(define html-example '(html (head (title "CS135"))
+                            (body (h1 "Welcome")
+                                  "More text...")))
+(define testb '(p "Hello, " (b "World") "!")) 
+
+
+;;******* Q2a ********
+
+;; (html->string html-item) consumes a html-item and produces its corresponding HTML text
+;; Examples:
+(check-expect (html->string "text") "text")
+(check-expect
+(html->string html-example)
+(string-append "<html><head><title>CS135</title></head>"
+               "<body><h1>Welcome</h1>More text...</body></html>"))
+
+;; html->string: HI -> Str
+(define (html->string html-item)
+  (cond [(empty? html-item) empty]
+        [(string? html-item)  html-item]
+        [(symbol? (first html-item)) (string-append "<" (symbol->string (first html-item)) ">"
+                                                   (processlistofHI (rest html-item)) "</"
+                                                   (symbol->string (first html-item)) ">")]))
+        
+;; Tests:
+(check-expect (html->string empty) empty)
+(check-expect (html->string just-text) "Hello, world!")
+(check-expect (html->string short-example) "<p><h1>Heading</h1>Text</p>")
+
+;; (processlistofHI listofhtml) proccesses a listofhtml by producing its equivalent HTML text
+;; Examples:
+(check-expect (processlistofHI empty) "")
+(check-expect (processlistofHI (list (list 'h1 "Heading") "Text")) "<h1>Heading</h1>Text")
+
+;; processlistofHI: HI -> Str
+(define (processlistofHI listofhtml)
+  (cond [(empty? listofhtml) ""]
+        [else (string-append (html->string (first listofhtml)) (processlistofHI (rest listofhtml)))]))
+   
+    
+;;******* Q2b ********
+
+;; (remove-tag symbol html-item) consumes a symbol and html-item and then removes all occurences
+;; of that tag 
+;; Examples:
+(check-expect (remove-tag 'b html-example) html-example)
+(check-expect (remove-tag 'b '(p "Hello, " (b "World") "!")) '(p "Hello, " "World" "!")) 
+(check-expect (remove-tag 'p '(p "Hello, " (b "World") "!")) '("Hello, " (b "World") "!"))
+
+;; remove-tag: Sym HI -> (anyof HI (listof HI))
+(define (remove-tag symbol html-item)
+  (cond [(empty? html-item) empty]
+        [(string? html-item)  html-item]
+        [(and (symbol? (first html-item)) (equal? symbol (first html-item)))
+         (processTagListOfHI symbol (rest html-item))]
+        [(symbol? (first html-item))
+         (cons (first html-item) (processTagListOfHI symbol (rest html-item)))]))
+        
+;; Tests:
+(check-expect (remove-tag 'b empty) empty)
+(check-expect (remove-tag 'p short-example) '((h1 "Heading") "Text"))
+(check-expect (remove-tag 'b '(b "hello" "house")) '("hello" "house"))
+
+;; (processTagListOfHI symbol listOfHtml) processes a  symbol and a HI with its first symbol removed
+;; and removes all occurences of the symbol from the HI 
+;; Examples:
+(check-expect (processTagListOfHI 'p (rest short-example)) '((h1 "Heading") "Text"))
+(check-expect (processTagListOfHI 'b empty) empty)
+
+;; processTagListOfHI: symbol HI ->   (anyof HI (listof HI))            
+(define (processTagListOfHI symbol listOfHtml)
+  (cond [(empty? listOfHtml) empty]
+        [else (consOrNotCons symbol (first listOfHtml)
+              (remove-tag symbol (first listOfHtml))
+              (processTagListOfHI symbol (rest listOfHtml)))]))
+         
+;; (consOrNotCons symbol currentElement htmlItem listOfHtmlItems) appends or cons
+;; a symbol or string to a HI
+;; Examples:
+(check-expect (consOrNotCons 'p (list 'h1 "Heading") (list 'h1 "Heading") (list "Text"))
+              (list (list 'h1 "Heading") "Text"))
+
+;; consOrNotCons: Sym HI HI HI -> (list of HI)
+(define (consOrNotCons symbol currentElement htmlItem listOfHtmlItems)
+  (cond [(string? htmlItem)(cons htmlItem listOfHtmlItems)]
+        [(and (symbol? (first currentElement)) (equal? symbol (first currentElement)))
+        (append htmlItem listOfHtmlItems)]
+        [else (cons htmlItem listOfHtmlItems)]))
+
+;;******* Q2c ********
+
+;; (okay-tags? htmlItem) produces true if htmlItem follows guidelines and false otherwise
+;; Rules are: 'hr cannot have children and 'li can only occur when parent 'ol is 'ul 
+;; Examples:
+(check-expect (okay-tags? html-example) true)
+(check-expect (okay-tags? '(body (hr "hello"))) false)
+(check-expect (okay-tags? '(body (li "Q1") "text")) false)
+(check-expect (okay-tags? '(body (ul (li) "text") )) true)
+
+;; okay-tags?: HI -> Bool  
+(define (okay-tags? htmlItem)
+  (okay-tag2 htmlItem ""))
+
+;; Tests:
+(check-expect (okay-tags? short-example) true)
+(check-expect (okay-tags? "string") true)
+(check-expect (okay-tags? '(body (ol (li) "text"))) true)
+(check-expect (okay-tags? empty) true)
+
+;; (okay-tag2 htmlItem parent) produces true if htmlItem follows guidelines and false otherwise
+;;Rules are: 'hr cannot have children and 'li can only occur when parent 'ol is 'ul 
+;; Examples: wrapper function for okay-tags?
+
+;; okay-tag2: HI Sym -> Bool
+(define (okay-tag2 htmlItem parent)
+  (cond [(empty? htmlItem) true]
+        [(string? htmlItem) true]
+        [(and (symbol? (first htmlItem)) (equal? 'hr (first htmlItem)))
+         (check_children_hr (rest htmlItem))]
+        [(and (symbol? (first htmlItem)) (equal? 'li (first htmlItem)))
+         (and (check_children_li (rest htmlItem) parent) true)]
+        [(symbol? (first htmlItem))
+         (and (processTagListOfHIxx (rest htmlItem) (symbol->string (first htmlItem))) true)]))
+
+;; (processTagListOfHIxx listofHtml parent) determines if a listofHtml
+;; is a list item that has its the appropiate parent and if not a list item produces true
+;; Examples:
+(check-expect (processTagListOfHIxx '("house") "") true)
+(check-expect (processTagListOfHIxx empty "") true)
+(check-expect (processTagListOfHIxx (rest short-example) "om") true)
+
+;; processTagListOfHIxx (listof HI) Str -> Bool
+(define (processTagListOfHIxx listOfHtml parent)
+  (cond [(empty? listOfHtml) true]
+        [else (and (okay-tag2 (first listOfHtml) parent)
+               (processTagListOfHIxx (rest listOfHtml) parent))]))
+
+;; (check_children_hr html) makes sure a horitzonal rule does not have children
+;; Examples:
+(check-expect (check_children_hr '(body (hr "hello"))) false)
+(check-expect (check_children_hr empty) true)
+
+;; check_children_hr: HI -> Bool
+(define (check_children_hr html)
+  (cond [(empty? html) true]
+        [else false]))
+   
+;; (check_children_hr html) makes sure a parent of a list item
+;; is either an ordered list or an unordered list 
+;; Examples:
+(check-expect (check_children_li '((li "Q1") "text") "") false)
+(check-expect (check_children_li '(ul (li "text")) "ul") true)
+
+;; check_children_li HI Str -> Bool 
+(define (check_children_li html parent)
+  (cond [(empty? html) true]
+        [(equal? parent "") false]
+        [(or (equal? parent "ol") (equal? parent "ul")) true]
+        [else false]))
